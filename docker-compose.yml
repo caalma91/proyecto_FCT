@@ -1,0 +1,131 @@
+version: "3.8"
+services:
+  traefik:
+    image: "traefik:2.5.6"
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    networks:
+      dmz:
+        ipv4_address: 192.168.1.20
+
+  php-apache:
+    build:
+      context: .
+    container_name: apache1
+    depends_on:
+      - "traefik"
+      - "mysql"
+    volumes:
+      - "./www:/var/www/html/"
+      - "./uploads.ini:/usr/local/etc/php/conf.d/uploads.ini"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.php-apache.rule=Host(localhost, lvh.me, proyecto.lvh.me, 127.0.0.1)"
+      - "traefik.http.routers.php-apache.entrypoints=web"
+    networks:
+      dmz:
+        ipv4_address: 192.168.1.11
+
+  php-apache2:
+    build:
+      context: .
+    container_name: apache2
+    depends_on:
+      - "traefik"
+      - "mysql"
+    volumes:
+      - "./www:/var/www/html/"
+      - "./uploads.ini:/usr/local/etc/php/conf.d/uploads.ini"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.php-apache.rule=Host(localhost, lvh.me, proyecto.lvh.me, 127.0.0.1)"
+      - "traefik.http.routers.php-apache.entrypoints=web"
+    networks:
+      dmz:
+        ipv4_address: 192.168.1.12
+
+  php-apache3:
+    build:
+      context: .
+    container_name: apache3
+    depends_on:
+      - "traefik"
+      - "mysql"
+    volumes:
+      - "./www:/var/www/html/"
+      - "./uploads.ini:/usr/local/etc/php/conf.d/uploads.ini"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.php-apache.rule=Host(localhost, lvh.me, proyecto.lvh.me, 127.0.0.1)"
+      - "traefik.http.routers.php-apache.entrypoints=web"
+    networks:
+      dmz:
+        ipv4_address: 192.168.1.13
+
+  mysql:
+    image: "mysql:8.0.27"
+    depends_on:
+      - "traefik"
+    volumes:
+      - "./dbdata:/var/lib/mysql"
+    command: 
+      - "--default-authentication-plugin=mysql_native_password"
+    environment:
+      MYSQL_ROOT_PASSWORD: "admin"
+      MYSQL_DATABASE: "proyecto"
+      MYSQL_USER: "admin"
+      MYSQL_PASSWORD: "admin"
+    labels:
+      - "traefik.enable=false"
+    networks:
+      dmz:
+        ipv4_address: 192.168.1.21
+
+  phpmyadmin:
+    image: "phpmyadmin/phpmyadmin"
+    depends_on:
+      - "mysql"
+    links:
+      - "mysql"
+    environment:
+      PMA_HOST: "mysql"
+      PMA_PORT: "3306"
+      UPLOAD_LIMIT: "256M"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.whoami.rule=Host(pma.localhost, pma.lvh.me)"
+      - "traefik.http.routers.whoami.entrypoints=web"
+    networks:
+      dmz:
+        ipv4_address: 192.168.1.22
+
+  balanceador:
+    image: nginx:latest
+    container_name: balanceador
+    networks:
+      dmz:
+        ipv4_address: 192.168.1.10
+    ports:
+      - "8081:80"
+    stdin_open: true
+    tty: true
+    volumes:
+      - nginx-config:/etc/nginx
+    command: bash -c "service nginx start"
+
+networks:
+  dmz:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.1.0/24
+volumes:
+  nginx-config:
